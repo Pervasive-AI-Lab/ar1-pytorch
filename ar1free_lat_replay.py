@@ -19,7 +19,6 @@ from __future__ import division
 from __future__ import absolute_import
 
 from data_loader import CORE50
-import copy
 import os
 import json
 from models.mobilenet import MyMobilenetV1
@@ -57,6 +56,7 @@ inc_lr = eval(exp_config['inc_lr'])
 mb_size = eval(exp_config['mb_size'])
 init_train_ep = eval(exp_config['init_train_ep'])
 inc_train_ep = eval(exp_config['inc_train_ep'])
+val_interval_ep = eval(exp_config['val_interval_ep'])
 init_update_rate = eval(exp_config['init_update_rate'])
 inc_update_rate = eval(exp_config['inc_update_rate'])
 max_r_max = eval(exp_config['max_r_max'])
@@ -95,8 +95,8 @@ replace_bn_with_brn(
     max_r_max=max_r_max, max_d_max=max_d_max
 )
 model.saved_weights = {}
-model.past_j = {i:0 for i in range(50)}
-model.cur_j = {i:0 for i in range(50)}
+model.past_j = {i: 0 for i in range(50)}
+model.cur_j = {i: 0 for i in range(50)}
 if ewc_lambda != 0:
     ewcData, synData = create_syn_data(model)
 
@@ -211,21 +211,20 @@ for i, train_batch in enumerate(dataset):
                     cur_acts = torch.cat((cur_acts, lat_acts), 0)
 
             _, pred_label = torch.max(logits, 1)
-            correct_cnt += (pred_label == y_mb).sum()
+            correct_cnt += (pred_label == y_mb).sum().item()
 
             loss = criterion(logits, y_mb)
-            if ewc_lambda !=0:
+            if ewc_lambda != 0:
                 loss += compute_ewc_loss(model, ewcData, lambd=ewc_lambda)
             ave_loss += loss.item()
 
             loss.backward()
             optimizer.step()
 
-            if ewc_lambda !=0:
+            if ewc_lambda != 0:
                 post_update(model, synData)
 
-            acc = correct_cnt.item() / \
-                  ((it + 1) * y_mb.size(0))
+            acc = correct_cnt / ((it + 1) * y_mb.size(0))
             ave_loss /= ((it + 1) * y_mb.size(0))
 
             if it % 10 == 0:
@@ -239,6 +238,14 @@ for i, train_batch in enumerate(dataset):
             tot_it_step +=1
             writer.add_scalar('train_loss', ave_loss, tot_it_step)
             writer.add_scalar('train_accuracy', acc, tot_it_step)
+
+        if (ep+1) % val_interval_ep == 0 and ep != train_ep - 1:
+            with CwrValidationSession(model, cur_class) as val_model:
+                ave_loss, acc, accs = get_accuracy(val_model, criterion, mb_size,
+                                                   test_x, test_y, preproc=preproc)
+
+                print('===== ep {}/{}, avg. test. loss: {:.6f}, test acc: {:.3f} ====='
+                      .format(ep+1, train_ep, ave_loss, acc))
 
         cur_ep += 1
 
