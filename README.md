@@ -116,3 +116,5 @@ We suggest to take a look at the papers linked above to have a better idea
 We are working to release AR1* hyper-parameter settings for other
  common Continual Learning benchmarks. Send an email to vincenzo.lomonaco@unibo.it
   in case you're interested!
+
+Aim is to run and understand the code in this repository.
